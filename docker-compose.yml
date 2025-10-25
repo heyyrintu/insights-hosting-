@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  mariadb:
+    image: ${MARIADB_IMAGE:-mariadb:10.8}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+
+  frappe:
+    image: frappe/bench:latest
+    command: bash /workspace/init.sh
+    environment:
+      SHELL: /bin/bash
+      # Helps avoid frontend build OOM on small servers
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=4096}
+      # init parameters
+      MARIADB_HOST: mariadb
+      REDIS_URL: redis:6379
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SITE_NAME: ${SITE_NAME:-insights.localhost}
+      INSIGHTS_BRANCH: ${INSIGHTS_BRANCH:-develop}
+    working_dir: /home/frappe
+    volumes:
+      - .:/workspace
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mariadb
+      - redis
+    restart: unless-stopped
+
+volumes:
+  mariadb-data:
